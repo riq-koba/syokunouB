@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>職能要件B 評価システム</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+</head>
+<body class="bg-gray-100 min-h-screen text-gray-800 font-sans" x-data="appData()">
+
+  <header class="bg-indigo-900 text-white p-4 shadow-md">
+    <div class="max-w-3xl mx-auto flex justify-between items-center">
+      <h1 class="text-xl font-bold">職能要件B 評価システム</h1>
+      <span class="text-sm bg-indigo-800 px-3 py-1 rounded-full" x-text="stepText()"></span>
+    </div>
+  </header>
+
+  <main class="max-w-3xl mx-auto p-4 sm:p-6">
+
+    <div x-show="step === 1" class="bg-white p-6 rounded-lg shadow-md space-y-6">
+      <h2 class="text-lg font-bold border-b pb-2 text-indigo-900">1. 社員情報の入力</h2>
+      
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium mb-1">社員番号 <span class="text-red-500">*</span></label>
+          <input type="text" x-model="user.id" placeholder="例: 123456" class="w-full border rounded-md p-2 focus:ring-2 focus:ring-indigo-500 outline-none">
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-1">お名前 <span class="text-red-500">*</span></label>
+          <input type="text" x-model="user.name" placeholder="例: 山田 太郎" class="w-full border rounded-md p-2 focus:ring-2 focus:ring-indigo-500 outline-none">
+        </div>
+      </div>
+
+      <div class="flex justify-end">
+        <button @click="goToStep2()" :disabled="!user.id || !user.name" class="bg-indigo-600 text-white px-6 py-2 rounded-md font-semibold hover:bg-indigo-700 disabled:bg-gray-300">
+          次へ進む
+        </button>
+      </div>
+    </div>
+
+    <div x-show="step === 2" class="bg-white p-6 rounded-lg shadow-md space-y-6" x-cloak>
+      <h2 class="text-lg font-bold border-b pb-2 text-indigo-900">2. 現在の職能カラーを選択</h2>
+      <p class="text-sm text-gray-600">あなたの現在の職能カラーを選択してください。評価対象として「一つ下のカラー」「現在のカラー」「一つ上のカラー」が自動選定されます。</p>
+
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <template x-for="(color, index) in colors" :key="color.key">
+          <button @click="selectedColorIndex = index" 
+                  :class="selectedColorIndex === index ? 'ring-4 ring-offset-2 ring-indigo-500 font-bold' : 'opacity-80 hover:opacity-100'"
+                  class="p-4 rounded-lg text-white transition-all shadow-sm flex flex-col items-center justify-center min-h-[80px]"
+                  :style="`background-color: ${color.hex}`">
+            <span class="text-lg" x-text="color.name"></span>
+          </button>
+        </template>
+      </div>
+
+      <template x-if="selectedColorIndex !== null">
+        <div class="bg-indigo-50 p-4 rounded-lg border border-indigo-200">
+          <p class="text-xs font-bold text-indigo-900 mb-2">【今回の評価対象カラー】</p>
+          <div class="flex flex-wrap gap-2">
+            <template x-for="target in targetColors" :key="target.colorIndex">
+              <span class="px-3 py-1 rounded-full text-xs font-bold text-white shadow-sm"
+                    :style="`background-color: ${colors[target.colorIndex].hex}`"
+                    x-text="`${target.label}: ${colors[target.colorIndex].name}`">
+              </span>
+            </template>
+          </div>
+        </div>
+      </template>
+
+      <div class="flex justify-between pt-4">
+        <button @click="step = 1" class="border border-gray-300 px-4 py-2 rounded-md text-gray-600 hover:bg-gray-50">戻る</button>
+        <button @click="startEvaluation()" :disabled="selectedColorIndex === null" class="bg-indigo-600 text-white px-6 py-2 rounded-md font-semibold hover:bg-indigo-700 disabled:bg-gray-300">
+          評価を開始する
+        </button>
+      </div>
+    </div>
+
+    <div x-show="step === 3" class="bg-white p-6 rounded-lg shadow-md space-y-6" x-cloak>
+      
+      <div class="space-y-1">
+        <div class="flex justify-between text-xs text-gray-500">
+          <span>進捗状況</span>
+          <span x-text="`${currentItemIndex + 1} / ${items.length} 項目目`"></span>
+        </div>
+        <div class="w-full bg-gray-200 h-2 rounded-full overflow-hidden">
+          <div class="bg-indigo-600 h-full transition-all duration-300" :style="`width: ${((currentItemIndex + 1) / items.length) * 100}%`"></div>
+        </div>
+      </div>
+
+      <div class="border-b pb-3">
+        <div class="flex items-center gap-2 mb-1">
+          <span class="bg-indigo-900 text-white text-xs font-bold px-2.5 py-1 rounded" x-text="currentItem.category"></span>
+          <h3 class="text-xl font-bold text-gray-900" x-text="`No.${currentItemIndex + 1} ${currentItem.title}`"></h3>
+        </div>
+        <p class="text-sm font-semibold text-indigo-950" x-text="currentItem.definition"></p>
+      </div>
+
+      <div class="space-y-6">
+        <template x-for="target in targetColors" :key="target.colorIndex">
+          <div class="border-2 rounded-xl p-4 space-y-3 bg-gray-50/50 shadow-sm"
+               :class="target.colorIndex === selectedColorIndex ? 'border-indigo-500 ring-1 ring-indigo-500' : 'border-gray-200'">
+            
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold px-2.5 py-1 rounded text-white shadow-sm"
+                    :style="`background-color: ${colors[target.colorIndex].hex}`"
+                    x-text="`${target.label}：${colors[target.colorIndex].name}`">
+              </span>
+            </div>
+
+            <p class="text-sm text-gray-700 bg-white p-3 rounded border leading-relaxed"
+               x-text="currentItem.colors[target.colorIndex]">
+            </p>
+
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+              <template x-for="opt in options" :key="opt.value">
+                <button @click="currentEvals[target.colorIndex] = opt.value" 
+                        :class="currentEvals[target.colorIndex] === opt.value ? 'bg-indigo-600 text-white font-bold ring-2 ring-indigo-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100'"
+                        class="border py-2.5 px-1 rounded-lg text-center transition-all flex flex-col justify-center items-center min-h-[64px]">
+                  <div class="text-base font-bold leading-none mb-1" x-text="opt.value"></div>
+                  <div class="text-[10px] sm:text-[11px] font-normal opacity-90 leading-tight" x-text="opt.label"></div>
+                </button>
+              </template>
+            </div>
+          </div>
+        </template>
+      </div>
+
+      <div class="flex justify-end pt-4 border-t">
+        <button @click="nextItem()" :disabled="!canProceed()" class="bg-indigo-600 text-white px-8 py-3 rounded-lg font-bold hover:bg-indigo-700 disabled:bg-gray-300 transition-all shadow">
+          <span x-text="currentItemIndex < items.length - 1 ? '次の項目へ →' : '評価を完了する'"></span>
+        </button>
+      </div>
+    </div>
+
+    <div x-show="step === 4" class="bg-white p-8 rounded-lg shadow-md text-center space-y-6" x-cloak>
+      <div class="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto text-3xl">✓</div>
+      <h2 class="text-2xl font-bold text-gray-800">評価の回答が完了しました</h2>
+      <p class="text-gray-600">ご回答ありがとうございます。「回答をアウトプットする」を押すと、評価結果入りのPDFファイルをダウンロードできます。</p>
+      
+      <div class="bg-gray-50 p-4 rounded-lg text-left text-sm max-w-md mx-auto space-y-1 border">
+        <p><strong>社員番号:</strong> <span x-text="user.id"></span></p>
+        <p><strong>氏名:</strong> <span x-text="user.name"></span></p>
+        <p><strong>評価対象カラー:</strong> <span x-text="colors[selectedColorIndex]?.name"></span></p>
+        <p><strong>評価回答数:</strong> <span x-text="`${items.length} 項目 × ${targetColors.length} カラー`"></span></p>
+      </div>
+
+      <div class="flex flex-col sm:flex-row justify-center gap-4 pt-2">
+        <button @click="exportToPDF()" class="bg-emerald-600 text-white px-8 py-3 rounded-lg font-bold hover:bg-emerald-700 shadow transition-all flex items-center justify-center gap-2">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+          回答をアウトプットする (PDF)
+        </button>
+        <button @click="resetForm()" class="bg-gray-200 text-gray-700 px-6 py-3 rounded-lg font-semibold hover:bg-gray-300 transition-all">
+          最初に戻る
+        </button>
+      </div>
+    </div>
+
+  </main>
+
+  <script>
+    function appData() {
+      return {
+        step: 1,
+        user: { id: '', name: '' },
+        selectedColorIndex: null,
+        currentItemIndex: 0,
+        currentEvals: {},
+        answers: [],
+
+        colors: [
+          { key: 'red', name: '赤 (Red)', hex: '#EF4444' },
+          { key: 'orange', name: '橙 (Orange)', hex: '#F97316' },
+          { key: 'yellow', name: '黄 (Yellow)', hex: '#EAB308' },
+          { key: 'green', name: '緑 (Green)', hex: '#22C55E' },
+          { key: 'blue', name: '青 (Blue)', hex: '#3B82F6' },
+          { key: 'indigo', name: '藍 (Indigo)', hex: '#6366F1' },
+          { key: 'violet', name: '紫 (Violet)', hex: '#A855F7' }
+        ],
+
+        options: [
+          { value: 'S', label: '期待を大きく超え、模範的である' },
+          { value: 'A', label: '十分に満たしている' },
+          { value: 'B', label: '一部に未達がある' },
+          { value: '✖', label: '著しく不足している' }
+        ],
+
+        items: [
+          {
+            category: '土台', title: '誠実性', definition: '「約束やルール、事実を大切にし、信頼される行動を積み重ねる力」',
+            colors: [
+              '挨拶・時間・身だしなみなど社会人としての基本を守り、分からないことはそのままにせず確認しながら、安心して仕事を任せられる土台を築いている。',
+              '約束した期限・ルールを守り、事実に基づいた報告・連絡・相談を行うとともに、必要な情報を自ら確認して仕事の信頼性を高めている。',
+              '状況の変化や問題が生じた際も事実を正しく伝え、思い込みで判断せず公平な視点で情報を共有することで、周囲が安心して判断できる環境を支えている。',
+              'チームの約束や運用ルールが守られているかを確認し、曖昧な運用を見逃さないことで、互いに信頼して働ける職場をつくっている。',
+              '組織全体の判断基準となるルールや運用を率先して守り、一貫した判断と行動を通じて、公正で信頼される組織運営を支えている。',
+              '判断に迷う場面でも客観的な事実に基づく誠実な判断を貫き、その姿勢を組織全体へ波及させることで、健全な組織文化を育んでいる。',
+              '目先の利益に左右されず、顧客や写真との信頼関係を重んじる判断をすることで、理究グループが社会から信頼され続ける企業文化を築いている。'
+            ]
+          },
+          {
+            category: '土台', title: '責任感', definition: '「任された役割や期待に向き合い、自ら果たすべき責務を最後まで担い続ける力」',
+            colors: [
+              '任された業務や役割を理解し、不明な点は早めに確認しながら、途中で投げ出さず最後までやり遂げている。',
+              '担当業務で求められる役割を理解し、自らの判断や行動を振り返りながら、期待される責務を着実に果たし続けている。',
+              '担当業務で生じた課題や結果を自分事として受けとめめ、原因を振り返り、必要な対応や改善を最後まで行うことで、周囲からの信頼に応えている。',
+              'チーム全体の状況を踏まえ、自分の担当にとどまらず周囲への支援やフォローを行い、チームとして求められる役割を果たせるようにしている。',
+              '組織として果たすべき責務を明確にし、状況の変化に応じた判断と調整を続けながら、最後まで責任ある対応を貫いている。',
+              '組織の未来のために他部署と連携して、困難な状況でも役割を果たし続けることで、組織の持続的な発展を支えている。',
+              '理究グループが社会や顧客から期待される役割を担い続けられるように、長期的な視点での意思決定と実践を自らの責任のもと行っている。'
+            ]
+          },
+          {
+            category: '土台', title: '主体性', definition: '「指示を待つのではなく、自ら考え、判断し、必要な働きかけを行う力」',
+            colors: [
+              '指導・助言を素直に受け止め、分からないことや必要なことに自ら気付き、確認や相談を行いながら仕事を前へ進めている。',
+              '担当業務の目的や期待される役割を踏まえ、自ら優先順位を考えて行動し、自分で判断できることは考えて動くことで担当としての信頼を築いている。',
+              '担当業務をより良くするために自ら課題や改善点を見つけ、また、現状を踏まえた行動を選択することで、仕事の質を高めている。',
+              'チームに必要な働きかけを自ら行い、目標達成に向けて周囲が動きやすいきっかけをつくることで、チームの前進を支えている。',
+              '組織の目標や目的を踏まえて必要な行動を判断し、チームや課を超えて働きかけることで、メンバーが力を発揮できる状態をつくり、組織全体を前へ進めている。',
+              '将来を見据えて組織に必要な変化を察知し、自ら周囲へ働きかけながら、自律的に行動できる組織づくりをしている。',
+              '社会や顧客の変化やニーズを捉え、新たな事業・サービス・仕組みへ結び付ける構想を描き、組織を巻き込みながらその実現を主導している。'
+            ]
+          },
+          {
+            category: '土台', title: '成長志向', definition: '「経験から学び続け、自らの成長につなげる力」',
+            colors: [
+              '日々の仕事で学んだことや周囲からの助言を振り返り、できたこと・できなかったことを確認しながら、次の行動に活かしている。',
+              '自分の強みや課題を把握し、必要な知識や経験を積み重ねながら、学んだことを担当業務で実践し着実に成長している。',
+              '成功や失敗の要因を分析して業務改善を重ね、周囲からの助言や仕事の経験を自らの成長につなげながら、担当する役割の幅を広げている。',
+              'チームで得られた経験や学びを周囲へ共有し、互いに学び、高め合える雰囲気づくりに貢献している。',
+              '組織に必要な学びを見極め、自ら学び続ける姿勢を示すとともに、メンバー一人ひとりの成長を後押しする働きかけを続けている。',
+              '人が育つ仕組みや環境を整え、将来必要となる力を見据えた人材育成を計画的に進めることで、組織全体の成長基盤を強化している。',
+              '理究グループの未来を支える人材が育ち続ける仕組みと組織文化を創り上げ、自律的に学び進化し続ける姿勢と共に、次世代へ継承している。'
+            ]
+          },
+          {
+            category: '人', title: 'コミュニケーション力', definition: '「組織の成果や円滑な業務遂行に向けて、相手と過不足なく意思疎通を図り、必要な情報や考えを正確に伝え合う力」',
+            colors: [
+              '相手の話を最後まで聴き、指示や依頼の内容を正しく理解するとともに、自分の状況を分かりやすく伝えながら認識のずれを防いでいる。',
+              '相手の立場や理解度に応じて伝え方や確認方法を工夫し、互いの認識を一致させながら担当業務を円滑に進めている。',
+              '相手の立場や状況を踏まえて必要な情報を整理し、適切なタイミングで共有することで、関係者が迷わず判断できる状態をつくっている。',
+              'チーム内で必要な情報が正しく伝わるよう対話を促し、それぞれの強みを活かした役割分担で互いに補い合う関係を築いている。',
+              '各課、チーム間の立場や目的の違いを整理し、互いの目的を理解した上で合意形成を進めることで、組織全体の連携を促進している。',
+              '組織の方針や考えを分かりやすく言語化し、多様な価値観や背景を持つ関係者との対話を通じて共通認識を形成することで、組織の方向性を一致させている。',
+              '子ども・保護者・地域・社員など多様な関係者それぞれの思いや期待を丁寧につなぎ、理究グループが目指す未来への理解と共感を広げている。'
+            ]
+          },
+          {
+            category: '人', title: '協働性', definition: '「互いの強みや役割を活かし合い、一人では生み出せない成果につなげる力」',
+            colors: [
+              '自分の役割を果たすとともに、困っている仲間へ声をかけ、必要に応じて支え合いながら仕事を進めている。',
+              '自分と周囲の役割を理解し、相手の状況に応じた協力を行うことで、担当業務が円滑に進むよう支えている。',
+              '一人ひとりの得意なことを活かしながら役割を補完し合い、共通の目的に向けて互いに力を発揮できる状態をつくっている。',
+              'チーム全体を見渡して必要な支援や調整を行い、それぞれの強みを活かした役割分担で互いに補い合う関係を築いている。',
+              'チームや課を越えて人や情報をつなぎ、それぞれの専門性と強みを組み合わせることで、組織全体の力を高めている。',
+              '多様な人材が互いの強みを発揮できる環境を整え、部署の枠を越えた協働を促進している。',
+              '理究グループ全体の知恵と強みを結び付け、保育・教育の未来を支える新たな価値を共創している。'
+            ]
+          },
+          {
+            category: '人', title: '影響力', definition: '「自らの姿勢や働きかけを通じて、相手が自発的に行動したくなる状態をつくる力」',
+            colors: [
+              '自ら模範となる行動を積み重ね、周囲から安心して相談される存在となっている。',
+              '根拠を示して提案・説明を行い、相手の状況に応じた声かけを通じて、自発的な行動につながるきっかけをつくっている。',
+              '相手の考えや思い、背景を理解した上で適切な働きかけをし、一人ひとりが自ら判断して行動できるよう後押ししている。',
+              '一人ひとりの意欲や強みを認め、承認を重ねることで、チーム全体が前向きに挑戦できる職場環境をつくっている。',
+              '組織が目指す方向を分かりやすく示し、自ら率先して行動することで、多くのメンバーが同じ目標、目的へ向かって動く流れを生み出している。',
+              '人の成長を信じて可能性を引き出し、自ら動き挑戦し続ける人材が増える組織風土を育んでいる。',
+              '理究グループが大切にする考え方と行動を全社にとどまらず広げることで、「理究と一緒に未来をつくりたい」と共感する人を増やしている。'
+            ]
+          },
+          {
+            category: '成果', title: '実行力', definition: '「目標や目的の実現に向けて必要な行動を着実に進め、計画した状態まで到達させる力」',
+            colors: [
+              '教わった手順を守り、優先順位を確認しながら、一つひとつの業務を概ね予定どおり完了している。',
+              '複数の業務の優先順位を判断し、期限を踏まえて計画的に進め、完了することで、安定した仕事ぶりを発揮している。',
+              '目標や目的に対し、必要な工程を組み立て、状況の変化に応じて進め方を柔軟に見直しながら、求められる水準でやり遂げている。',
+              'チーム全体の進捗を把握し、遅れや偏りを調整することで、計画どおりチームが前へ進む状態を維持している。',
+              '組織の重点課題(KPI)ごとに着実に推進し、複数の取り組みが連動して前進する状態をつくっている。',
+              '中長期の構想(事業計画)を実現するために必要な段階を設計し、困難な状況でも着実に前進し続ける実行体制を整えている。',
+              '理究グループの未来につながる重要な挑戦を構想だけで終わらせず、着実に実現段階へ導き、次の成長へ結び付く基盤を築いている。'
+            ]
+          },
+          {
+            category: '成果', title: '課題解決力', definition: '「現状を整理・分析し、課題の本質を捉えて適切な解決策を導き出す力」',
+            colors: [
+              '困ったことや気になることをそのままにせず、周囲へ相談しながら事実を整理し、何が問題かを明確にしている。',
+              '担当業務に起きた問題について事実と原因を整理し、再発防止につながる改善策を考え、実践している。',
+              '表面的な事象にとらわれず、目標とのギャップを生み出している本質的な原因や課題（ボトルネック）を見極め、解決策を導き出している。',
+              'チームで発生する課題を構造的に整理し、関係者と協力しながら、優先して解決すべき課題に取り組んでいる。',
+              '組織全体の課題を多面的に分析し、根本的な解決につながる方向性を示して、周囲を巻き込みながら推進している。',
+              '将来起こり得る課題を予測し、顕在化する前に対策を講じることで、組織の安定と成長を先回りして支えている。',
+              '保育・教育を取り巻く環境の変化を見据え、理究グループが向かうべき経営課題を示し、持続可能な解決へ導いている。'
+            ]
+          },
+          {
+            category: '成果', title: '創意工夫力', definition: '「既存の方法にとらわれず、新たな発想や組み合わせによって、より良い方法や価値を生み出す力」',
+            colors: [
+              '教わった方法を身に付けた上で、自分なりにより良い進め方を考え、身近な工夫を取り入れながら仕事に取り組んでいる。',
+              '既存のやり方を応用し、担当業務をより効率的・効果的に進めるための新しい方法や工夫を積極的に取り入れている。',
+              '異なる事例や知見を組み合わせ、担当業務に新しい進め方や仕組みを生み出し、実践している。',
+              'チームの経験や知恵を組み合わせ、これまでになかった仕事の進め方であっても形にしてチームへ広げている。',
+              '組織内の知見を横断的に結び付け、新たな業務プロセスや仕組みにつながる方法（現状の可視化や非効率部分の特定と改善などを含む）を生み出している。',
+              '部署を超えた多様なノウハウや視点を融合し、理究グループの新たな強みとなる仕組みや価値を創出し、継続的な改善の風土を育んでいる。',
+              '保育・教育の新たな可能性を切り拓く発想を形にし、社会や顧客の期待を超える価値として、理究グループから広げている。'
+            ]
+          },
+          {
+            category: '未来創る', title: '挑戦志向', definition: '「現状に満足せず、より良い未来に向けて新しい一歩を踏み出す力」',
+            colors: [
+              '初めての仕事や経験にも前向きに取り組み、失敗を恐れず自ら行動の幅を広げている。',
+              '担当業務で経験のない役割にも臆せず手を挙げ、新しい経験を自ら積み重ねている。',
+              '現状に満足せず、より良い方法や一段高い目標へ向けて小さな挑戦を継続的に積み重ねている。',
+              'チームとして新しい取組へ踏み出せるよう、不安を受け止めながら挑戦を後押しする雰囲気をつくっている。',
+              '組織の成長に必要な変革を捉え、前例にとらわれない新しい取り組みへ率先して挑戦できる環境を整えている。',
+              '将来を見据えた挑戦を後押しし、挑戦から学び続ける文化を組織へ根付かせることで、次の成長機会を創り出している。',
+              '理究グループの未来を見据え、社会の変化を新たな可能性へ変える挑戦を先導し、価値を創出する文化を築いている。'
+            ]
+          },
+          {
+            category: '未来創る', title: '最適化力', definition: '「全体を俯瞰し、成果につながるより良い状態へ整える力」',
+            colors: [
+              '自分の仕事の優先順位や進め方を見直し、無理や無駄のない進め方を選んで、正確かつ効率的に業務を進めている。',
+              '担当業務全体を見渡し、無駄や重複を減らす工夫を行いながら、関係者と調整して効率的に仕事を進めている。',
+              '業務全体の流れを整理し、品質と効率の両立を意識して継続的に業務フローを改善している。',
+              'チーム全体の状況を俯瞰し、人・物・金・情報/技術と時間、役割を適切に組み合わせることで、チームが力を最大限に発揮できる状態をつくっている。',
+              '組織全体を俯瞰し、戦略の立案から顧客への価値提供、計画の完遂、そして次世代の育成に至る一連のプロセスを結び付けながら、継続して成果を生み出せる仕組みを整えている。',
+              '部門を越えて組織全体を最適な状態へ導き、変化に応じて仕組みそのものを進化させる組織運営基盤を構築している。',
+              '理究グループ全体を俯瞰し、人と組織、事業が時代の変化に適応しながら自律的・持続的に進化し続けられる、再現性の高い成長基盤を構築している。'
+            ]
+          },
+          {
+            category: '未来創る', title: '理念実践', definition: '「理究グループの理念や価値観を判断基準とし、日々の行動や意思決定で体現する力」',
+            colors: [
+              '理究グループの理念や価値観を理解し、日々の仕事で実践している。',
+              '判断に迷ったときは理念や行動指針に立ち返り、理念を基準として行動を選択している。',
+              '日々の行動と理念とのつながりを確認し、振り返りながら改善を続けることで、周囲へ良い影響を与えている。',
+              'チームで理念を共有し、自らの行動を通じて実践の手本となることで、日々の仕事の中で自然に理念が体現される状態をつくっている。',
+              '各課、チームの判断や取り組みが理念に沿っているかを確認し、組織の方針や制度に理念を反映させることで、一貫した組織運営を支えている。',
+              '理念を組織文化として根付かせるための人づくり・仕組みづくりを継続して進め、理究グループらしい組織づくりを推進している。',
+              '理究グループの理念を未来へ継承し、社会から信頼され、選ばれ続ける企業文化を創り上げている。'
+            ]
+          },
+          {
+            category: '未来創る', title: '価値創造力', definition: '「顧客や社会の期待を捉え、新たな価値を生み出す力」',
+            colors: [
+              '相手が何を求めているかを考え、自分の仕事にひと工夫を加えることで期待に応える行動を積み重ねている。',
+              '相手の立場から考え、担当業務を通じて期待を上回る工夫を行い、新たな喜びや満足につなげている。',
+              '顧客や現場の声から潜在的なニーズを捉え、これまでにない価値につながる提案や工夫を担当業務の中で形にしている。',
+              'チームの強みと知恵を結び付け、顧客にとってより高い価値を生み出す新たなサービスや取り組みを進めている。',
+              '組織全体の強みをかけ合わせ、顧客にとって新たな価値となる仕組みやサービス、商品を創出している。',
+              '社会や顧客の変化を先取りし、理究グループの新たな成長の柱となる価値を育て続けている。',
+              '「顧客の創造」と「未来創造支援」の理念を体現し、新たな価値を創り出すことで理究グループの存在意義そのものを進化させている。'
+            ]
+          }
+        ],
+
+        stepText() {
+          if (this.step === 1) return 'ステップ 1/3 (社員情報)';
+          if (this.step === 2) return 'ステップ 2/3 (カラー選択)';
+          if (this.step === 3) return 'ステップ 3/3 (評価回答)';
+          return '完了';
+        },
+
+        goToStep2() {
+          if (this.user.id && this.user.name) {
+            this.step = 2;
+          }
+        },
+
+        get targetColors() {
+          if (this.selectedColorIndex === null) return [];
+          
+          const targets = [];
+          const idx = this.selectedColorIndex;
+
+          if (idx - 1 >= 0) {
+            targets.push({ label: '一つ下', colorIndex: idx - 1 });
+          }
+          targets.push({ label: '現在', colorIndex: idx });
+          if (idx + 1 < this.colors.length) {
+            targets.push({ label: '一つ上', colorIndex: idx + 1 });
+          }
+
+          return targets;
+        },
+
+        startEvaluation() {
+          if (this.selectedColorIndex !== null) {
+            this.currentItemIndex = 0;
+            this.currentEvals = {};
+            this.answers = [];
+            this.step = 3;
+          }
+        },
+
+        get currentItem() {
+          return this.items[this.currentItemIndex];
+        },
+
+        canProceed() {
+          return this.targetColors.every(t => this.currentEvals[t.colorIndex] !== undefined && this.currentEvals[t.colorIndex] !== null);
+        },
+
+        nextItem() {
+          const itemResult = {
+            itemId: this.currentItemIndex + 1,
+            title: this.currentItem.title,
+            category: this.currentItem.category,
+            evaluations: this.targetColors.map(t => ({
+              colorName: this.colors[t.colorIndex].name,
+              label: t.label,
+              eval: this.currentEvals[t.colorIndex]
+            }))
+          };
+
+          this.answers.push(itemResult);
+
+          if (this.currentItemIndex < this.items.length - 1) {
+            this.currentItemIndex++;
+            this.currentEvals = {};
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          } else {
+            this.step = 4;
+          }
+        },
+
+        resetForm() {
+          this.step = 1;
+          this.user = { id: '', name: '' };
+          this.selectedColorIndex = null;
+          this.currentItemIndex = 0;
+          this.answers = [];
+          this.currentEvals = {};
+        },
+
+        // PDF出力関数
+        exportToPDF() {
+          const targetColorHeaders = this.targetColors.map(t => `<th style="padding: 8px; border: 1px solid #ccc; background-color: #f3f4f6;">${t.label}<br><span style="font-size: 10px; font-weight: normal;">${this.colors[t.colorIndex].name}</span></th>`).join('');
+
+          const rowsHtml = this.answers.map(ans => {
+            const evalsHtml = ans.evaluations.map(e => `<td style="padding: 8px; border: 1px solid #ccc; text-align: center; font-weight: bold; font-size: 14px;">${e.eval}</td>`).join('');
+            return `
+              <tr>
+                <td style="padding: 8px; border: 1px solid #ccc; text-align: center;">No.${ans.itemId}</td>
+                <td style="padding: 8px; border: 1px solid #ccc; text-align: center;">${ans.category}</td>
+                <td style="padding: 8px; border: 1px solid #ccc; font-weight: bold;">${ans.title}</td>
+                ${evalsHtml}
+              </tr>
+            `;
+          }).join('');
+
+          const container = document.createElement('div');
+          container.style.padding = '20px';
+          container.style.fontFamily = 'sans-serif';
+          container.style.fontSize = '12px';
+          container.style.color = '#333';
+
+          container.innerHTML = `
+            <div style="text-align: center; margin-bottom: 20px;">
+              <h1 style="font-size: 18px; font-weight: bold; margin-bottom: 5px;">職能要件B 自己評価結果シート</h1>
+              <p style="font-size: 11px; color: #666;">出力日時: ${new Date().toLocaleDateString('ja-JP')} ${new Date().toLocaleTimeString('ja-JP')}</p>
+            </div>
+
+            <div style="margin-bottom: 15px; border: 1px solid #ccc; padding: 10px; border-radius: 4px; background-color: #fafafa;">
+              <table style="width: 100%; border-collapse: collapse;">
+                <tr>
+                  <td style="padding: 4px 8px; width: 50%;"><strong>社員番号:</strong> ${this.user.id}</td>
+                  <td style="padding: 4px 8px; width: 50%;"><strong>氏名:</strong> ${this.user.name} 様</td>
+                </tr>
+                <tr>
+                  <td style="padding: 4px 8px;" colspan="2"><strong>現在のカラー:</strong> ${this.colors[this.selectedColorIndex]?.name}</td>
+                </tr>
+              </table>
+            </div>
+
+            <table style="width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 11px;">
+              <thead>
+                <tr>
+                  <th style="padding: 8px; border: 1px solid #ccc; background-color: #f3f4f6; width: 45px;">No.</th>
+                  <th style="padding: 8px; border: 1px solid #ccc; background-color: #f3f4f6; width: 60px;">区分</th>
+                  <th style="padding: 8px; border: 1px solid #ccc; background-color: #f3f4f6;">能力名</th>
+                  ${targetColorHeaders}
+                </tr>
+              </thead>
+              <tbody>
+                ${rowsHtml}
+              </tbody>
+            </table>
+          `;
+
+          const opt = {
+            margin:       10,
+            filename:     `職能要件B評価結果_${this.user.id}_${this.user.name}.pdf`,
+            image:        { type: 'jpeg', quality: 0.98 },
+            html2canvas:  { scale: 2 },
+            jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+          };
+
+          html2pdf().set(opt).from(container).save();
+        }
+      }
+    }
+  </script>
+</body>
+</html>
+
