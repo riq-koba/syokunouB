@@ -4,12 +4,16 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>職能要件B 評価システム</title>
+  <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Alpine.js -->
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <!-- html2pdf.js (PDF出力用ライブラリ) -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 </head>
 <body class="bg-gray-100 min-h-screen text-gray-800 font-sans" x-data="appData()">
 
+  <!-- ヘッダー -->
   <header class="bg-indigo-900 text-white p-4 shadow-md">
     <div class="max-w-3xl mx-auto flex justify-between items-center">
       <h1 class="text-xl font-bold">職能要件B 評価システム</h1>
@@ -19,6 +23,7 @@
 
   <main class="max-w-3xl mx-auto p-4 sm:p-6">
 
+    <!-- STEP 1: 社員情報入力ページ -->
     <div x-show="step === 1" class="bg-white p-6 rounded-lg shadow-md space-y-6">
       <h2 class="text-lg font-bold border-b pb-2 text-indigo-900">1. 社員情報の入力</h2>
       
@@ -40,6 +45,7 @@
       </div>
     </div>
 
+    <!-- STEP 2: 職能カラー選択ページ -->
     <div x-show="step === 2" class="bg-white p-6 rounded-lg shadow-md space-y-6" x-cloak>
       <h2 class="text-lg font-bold border-b pb-2 text-indigo-900">2. 現在の職能カラーを選択</h2>
       <p class="text-sm text-gray-600">あなたの現在の職能カラーを選択してください。評価対象として「一つ下のカラー」「現在のカラー」「一つ上のカラー」が自動選定されます。</p>
@@ -55,6 +61,7 @@
         </template>
       </div>
 
+      <!-- 対象カラープレビュー -->
       <template x-if="selectedColorIndex !== null">
         <div class="bg-indigo-50 p-4 rounded-lg border border-indigo-200">
           <p class="text-xs font-bold text-indigo-900 mb-2">【今回の評価対象カラー】</p>
@@ -77,18 +84,28 @@
       </div>
     </div>
 
+    <!-- STEP 3: 14項目の設問回答ページ -->
     <div x-show="step === 3" class="bg-white p-6 rounded-lg shadow-md space-y-6" x-cloak>
       
-      <div class="space-y-1">
-        <div class="flex justify-between text-xs text-gray-500">
+      <!-- 進捗メーター ＆ PDF閲覧ボタン -->
+      <div class="space-y-2">
+        <div class="flex justify-between items-center text-xs text-gray-500">
           <span>進捗状況</span>
-          <span x-text="`${currentItemIndex + 1} / ${items.length} 項目目`"></span>
+          <div class="flex items-center gap-3">
+            <span x-text="`${currentItemIndex + 1} / ${items.length} 項目目`"></span>
+            <!-- PDF閲覧ボタン -->
+            <button @click="showPdfModal = true" class="bg-indigo-100 text-indigo-700 hover:bg-indigo-200 font-semibold px-3 py-1 rounded-md text-xs flex items-center gap-1 transition-colors border border-indigo-300">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+              職能要件表（全体）を閲覧する
+            </button>
+          </div>
         </div>
         <div class="w-full bg-gray-200 h-2 rounded-full overflow-hidden">
           <div class="bg-indigo-600 h-full transition-all duration-300" :style="`width: ${((currentItemIndex + 1) / items.length) * 100}%`"></div>
         </div>
       </div>
 
+      <!-- 項目タイトル -->
       <div class="border-b pb-3">
         <div class="flex items-center gap-2 mb-1">
           <span class="bg-indigo-900 text-white text-xs font-bold px-2.5 py-1 rounded" x-text="currentItem.category"></span>
@@ -97,6 +114,7 @@
         <p class="text-sm font-semibold text-indigo-950" x-text="currentItem.definition"></p>
       </div>
 
+      <!-- 評価対象の各カラーカード（下・現在・上） -->
       <div class="space-y-6">
         <template x-for="target in targetColors" :key="target.colorIndex">
           <div class="border-2 rounded-xl p-4 space-y-3 bg-gray-50/50 shadow-sm"
@@ -113,6 +131,7 @@
                x-text="currentItem.colors[target.colorIndex]">
             </p>
 
+            <!-- 4段階評価ボタン（S/A/B/✖） -->
             <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
               <template x-for="opt in options" :key="opt.value">
                 <button @click="currentEvals[target.colorIndex] = opt.value" 
@@ -127,6 +146,7 @@
         </template>
       </div>
 
+      <!-- 次へボタン（右下配置） -->
       <div class="flex justify-end pt-4 border-t">
         <button @click="nextItem()" :disabled="!canProceed()" class="bg-indigo-600 text-white px-8 py-3 rounded-lg font-bold hover:bg-indigo-700 disabled:bg-gray-300 transition-all shadow">
           <span x-text="currentItemIndex < items.length - 1 ? '次の項目へ →' : '評価を完了する'"></span>
@@ -134,6 +154,7 @@
       </div>
     </div>
 
+    <!-- STEP 4: 完了画面 -->
     <div x-show="step === 4" class="bg-white p-8 rounded-lg shadow-md text-center space-y-6" x-cloak>
       <div class="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto text-3xl">✓</div>
       <h2 class="text-2xl font-bold text-gray-800">評価の回答が完了しました</h2>
@@ -159,10 +180,50 @@
 
   </main>
 
+  <!-- モーダル: 職能要件PDF閲覧ウィンドウ -->
+  <div x-show="showPdfModal" 
+       x-transition.opacity
+       class="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-2 sm:p-6" 
+       style="display: none;">
+    <div class="bg-white w-full max-w-5xl h-[90vh] rounded-xl shadow-2xl flex flex-col overflow-hidden" @click.away="showPdfModal = false">
+      
+      <!-- モーダルヘッダー -->
+      <div class="bg-indigo-900 text-white p-4 flex justify-between items-center border-b">
+        <h3 class="font-bold text-lg flex items-center gap-2">
+          📄 職能要件B（全社共通）一覧表
+        </h3>
+        <div class="flex items-center gap-2">
+          <!-- 表示されない環境用の直リンクボタン -->
+          <a href="requirements.pdf" target="_blank" class="bg-indigo-700 hover:bg-indigo-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1">
+            ↗ 別タブで開く
+          </a>
+          <button @click="showPdfModal = false" class="bg-indigo-800 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors">
+            ✕ 閉じる
+          </button>
+        </div>
+      </div>
+
+      <!-- PDF埋め込みエリア -->
+      <div class="flex-1 bg-gray-200 relative">
+        <iframe src="requirements.pdf" class="w-full h-full border-0"></iframe>
+      </div>
+
+      <!-- モーダルフッター -->
+      <div class="bg-gray-100 p-3 border-t flex justify-between items-center text-xs text-gray-500">
+        <span>※画面にPDFが表示されない場合は、右上の「別タブで開く」をお試しください。</span>
+        <button @click="showPdfModal = false" class="bg-gray-600 text-white px-5 py-2 rounded-md font-bold hover:bg-gray-700 transition-colors">
+          閉じる
+        </button>
+      </div>
+
+    </div>
+  </div>
+
   <script>
     function appData() {
       return {
         step: 1,
+        showPdfModal: false,
         user: { id: '', name: '' },
         selectedColorIndex: null,
         currentItemIndex: 0,
@@ -506,4 +567,3 @@
   </script>
 </body>
 </html>
-
